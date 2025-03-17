@@ -49,5 +49,22 @@
       "time_diff": "-0.864",
       "time_pct": "-0.75%"
     }
+  },
+  {
+    "timestamp": "2025-03-17T23:03:12.323Z",
+    "pr": {
+      "number": 22,
+      "title": "Check 25",
+      "url": "https://github.com/imshrishk/dmd/pull/22",
+      "commit": "65f1c856139cbacf186614937fd4551f570bb6db"
+    },
+    "metrics": {
+      "pr_time": 110.943,
+      "master_time": 112.458,
+      "pr_memory": null,
+      "master_memory": null,
+      "time_diff": -1.515,
+      "time_pct": "-1.35%"
+    }
   }
 ]
