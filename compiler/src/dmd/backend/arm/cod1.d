@@ -35,6 +35,7 @@ import dmd.backend.oper;
 import dmd.backend.rtlsym;
 import dmd.backend.ty;
 import dmd.backend.type;
+import dmd.backend.arm.cod2 : tyToExtend;
 import dmd.backend.arm.cod3 : COND, genBranch, conditionCode, gentstreg;
 import dmd.backend.arm.instr;
 import dmd.backend.arm.cod3 : loadFloatRegConst;
@@ -56,6 +57,7 @@ nothrow:
  */
 void loadFromEA(ref code cs, reg_t reg, uint szw, uint szr)
 {
+    //debug printf("loadFromEA() reg: %d, szw: %d, szr: %d\n", reg, szw, szr);
     cs.Iop = INSTR.nop;
     assert(reg != NOREG);
     if (mask(reg) & INSTR.FLOATREGS)       // if floating point store
@@ -83,6 +85,8 @@ void loadFromEA(ref code cs, reg_t reg, uint szw, uint szr)
         return;
     }
 
+    bool signExtend = (cs.Sextend & 7) == Extend.SXTB;
+
     if (cs.reg != NOREG)
     {
         if (cs.reg != reg)  // do not mov onto itself
@@ -103,9 +107,11 @@ void loadFromEA(ref code cs, reg_t reg, uint szw, uint szr)
     {
         // LDRB/LDRH/LDR reg,[cs.base, #0]
         if (szr == 1)
-            cs.Iop = INSTR.ldrb_imm(szw == 8, reg, cs.base, 0);
+            cs.Iop = signExtend ? INSTR.ldrsb_imm(szw == 8, reg, cs.base, 0)
+                                : INSTR.ldrb_imm (szw == 8, reg, cs.base, 0);
         else if (szr == 2)
-            cs.Iop = INSTR.ldrh_imm(szw == 8, reg, cs.base, 0);
+            cs.Iop = signExtend ? INSTR.ldrsh_imm(szw == 8, reg, cs.base, 0)
+                                : INSTR.ldrh_imm (szw == 8, reg, cs.base, 0);
         else
             cs.Iop = INSTR.ldr_imm_gen(szw == 8, reg, cs.base, 0);
     }
@@ -287,7 +293,7 @@ int isscaledindex(tym_t ty, elem* e)
 @trusted
 void logexp(ref CodeBuilder cdb, elem* e, uint jcond, FL fltarg, code* targ)
 {
-    //printf("logexp(e = %p, jcond = %d)\n", e, jcond); elem_print(e);
+    //printf("logexp(e: %p jcond: %d fltarg: %d targ: %p)\n", e, jcond, fltarg == FL.code, targ); elem_print(e);
     if (tybasic(e.Ety) == TYnoreturn)
     {
         con_t regconsave = cgstate.regcon;
@@ -1099,7 +1105,7 @@ void getlvalue(ref CodeBuilder cdb,ref code pcs,elem* e,regm_t keepmsk,RM rm = R
             }
             pcs.IEV1.Vsym = s;
             pcs.IEV1.Voffset = e.Voffset;
-            //pcs.Sextend = tyToExtend(ty);  only need to worry about this if pcs.index is set
+            pcs.Sextend = cast(ubyte)tyToExtend(ty);  // sign or zero extension
             if (sz == 1)
             {
                 s.Sflags |= GTbyte;
