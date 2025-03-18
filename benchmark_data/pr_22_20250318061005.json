@@ -1,0 +1,17 @@
+{
+  "timestamp": "2025-03-18T06:10:05.834Z",
+  "pr": {
+    "number": 22,
+    "title": "Check 25",
+    "url": "https://github.com/imshrishk/dmd/pull/22",
+    "commit": "c9ce859c97884501461edb5f81b569d6edca58bb"
+  },
+  "metrics": {
+    "pr_time": 113.473,
+    "master_time": 114.064,
+    "pr_memory": null,
+    "master_memory": null,
+    "time_diff": -0.591,
+    "time_pct": "-0.52%"
+  }
+}
