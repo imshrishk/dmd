@@ -95,43 +95,40 @@ jobs:
       - name: Run benchmarks
         working-directory: ./benchmark-phobos
         run: |
-          # Enable memory measurements by adding --show-output and explicitly using /usr/bin/time
+          # Create directories to store time outputs
+          mkdir -p time_outputs/pr
+          mkdir -p time_outputs/master
+
+          # Run hyperfine with commands that capture memory usage via /usr/bin/time
           hyperfine \
             --warmup 1 \
             --runs 5 \
-            --show-output \
             --export-json benchmark_results.json \
             --prepare 'rm -f *.o' \
             --command-name "PR Compiler" \
+            "/usr/bin/time -v -o 'time_outputs/pr/time_$(date +%s%N).txt' ../pr-dmd/generated/linux/release/$MODEL/dmd -i=std -c -unittest -version=StdUnittest -preview=dip1000 std/package.d 2>&1" \
             --command-name "Master Compiler" \
-            -N \
-            "/usr/bin/time -v ../pr-dmd/generated/linux/release/$MODEL/dmd -i=std -c -unittest -version=StdUnittest -preview=dip1000 std/package.d 2>&1 | grep 'Maximum resident set size' | awk '{print \$6}'" \
-            "/usr/bin/time -v ../master-dmd/generated/linux/release/$MODEL/dmd -i=std -c -unittest -version=StdUnittest -preview=dip1000 std/package.d 2>&1 | grep 'Maximum resident set size' | awk '{print \$6}'"
+            "/usr/bin/time -v -o 'time_outputs/master/time_$(date +%s%N).txt' ../master-dmd/generated/linux/release/$MODEL/dmd -i=std -c -unittest -version=StdUnittest -preview=dip1000 std/package.d 2>&1"
 
-          # Extract memory information from time output and add to benchmark_results.json
+          # Extract memory information from time output files
           PR_MEM_RESULTS=()
+          for file in time_outputs/pr/time_*.txt; do
+            mem=$(grep 'Maximum resident set size' "$file" | awk '{print $6}')
+            PR_MEM_RESULTS+=($mem)
+          done
+
           MASTER_MEM_RESULTS=()
-
-          # Extract PR memory results
-          for i in {1..5}; do
-            PR_MEM=$(/usr/bin/time -v ../pr-dmd/generated/linux/release/$MODEL/dmd -i=std -c -unittest -version=StdUnittest -preview=dip1000 std/package.d 2>&1 | grep 'Maximum resident set size' | awk '{print $6}')
-            PR_MEM_RESULTS+=($PR_MEM)
+          for file in time_outputs/master/time_*.txt; do
+            mem=$(grep 'Maximum resident set size' "$file" | awk '{print $6}')
+            MASTER_MEM_RESULTS+=($mem)
           done
 
-          # Extract Master memory results
-          for i in {1..5}; do
-            MASTER_MEM=$(/usr/bin/time -v ../master-dmd/generated/linux/release/$MODEL/dmd -i=std -c -unittest -version=StdUnittest -preview=dip1000 std/package.d 2>&1 | grep 'Maximum resident set size' | awk '{print $6}')
-            MASTER_MEM_RESULTS+=($MASTER_MEM)
-          done
-
-          # Add memory data to benchmark_results.json using temporary file and jq
-          echo "${PR_MEM_RESULTS[@]}" > pr_mem.txt
-          echo "${MASTER_MEM_RESULTS[@]}" > master_mem.txt
-
-          jq --arg pr_mem "$(cat pr_mem.txt)" --arg master_mem "$(cat master_mem.txt)" '
+          # Add memory data to benchmark_results.json using jq
+          jq --arg pr_mem "${PR_MEM_RESULTS[*]}" --arg master_mem "${MASTER_MEM_RESULTS[*]}" '
             .results[0].max_rss = ($pr_mem | split(" ") | map(tonumber)) |
             .results[1].max_rss = ($master_mem | split(" ") | map(tonumber))
           ' benchmark_results.json > benchmark_results_updated.json
+          mv benchmark_results_updated.json benchmark_results.json
 
           mv benchmark_results_updated.json benchmark_results.json
       - name: Parse results
