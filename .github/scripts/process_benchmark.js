@@ -21,28 +21,26 @@ try {
   const prTimeAvg = prResults.mean.toFixed(3);
   const masterTimeAvg = masterResults.mean.toFixed(3);
 
-  // Improved memory handling with proper error checks
+  // Fix memory calculation - check if max_rss exists and handle properly
   const prMemAvg = prResults.max_rss && prResults.max_rss.length > 0
     ? (prResults.max_rss.reduce((a, b) => a + b, 0) / prResults.max_rss.length / 1024).toFixed(1)
-    : 'N/A';
+    : null;
 
   const masterMemAvg = masterResults.max_rss && masterResults.max_rss.length > 0
     ? (masterResults.max_rss.reduce((a, b) => a + b, 0) / masterResults.max_rss.length / 1024).toFixed(1)
-    : 'N/A';
+    : null;
 
   const timeDiff = (prResults.mean - masterResults.mean).toFixed(3);
   const timePct = ((prResults.mean / masterResults.mean - 1) * 100).toFixed(2) + '%';
 
   // Calculate memory difference if both values are available
-  let memDiff = 'N/A';
-  let memPct = 'N/A';
+  const memDiff = (prMemAvg && masterMemAvg)
+    ? (parseFloat(prMemAvg) - parseFloat(masterMemAvg)).toFixed(1)
+    : null;
 
-  if (prMemAvg !== 'N/A' && masterMemAvg !== 'N/A') {
-    const prMemValue = parseFloat(prMemAvg);
-    const masterMemValue = parseFloat(masterMemAvg);
-    memDiff = (prMemValue - masterMemValue).toFixed(1);
-    memPct = ((prMemValue / masterMemValue - 1) * 100).toFixed(2) + '%';
-  }
+  const memPct = (prMemAvg && masterMemAvg && parseFloat(masterMemAvg) !== 0)
+    ? ((parseFloat(prMemAvg) / parseFloat(masterMemAvg) - 1) * 100).toFixed(2) + '%'
+    : null;
 
   result = {
     timestamp: new Date().toISOString(),
@@ -55,12 +53,12 @@ try {
     metrics: {
       pr_time: parseFloat(prTimeAvg),
       master_time: parseFloat(masterTimeAvg),
-      pr_memory: prMemAvg === 'N/A' ? null : parseFloat(prMemAvg),
-      master_memory: masterMemAvg === 'N/A' ? null : parseFloat(masterMemAvg),
+      pr_memory: prMemAvg === null ? null : parseFloat(prMemAvg),
+      master_memory: masterMemAvg === null ? null : parseFloat(masterMemAvg),
       time_diff: parseFloat(timeDiff),
       time_pct: timePct,
-      memory_diff: memDiff === 'N/A' ? null : parseFloat(memDiff),
-      memory_pct: memPct === 'N/A' ? null : memPct
+      mem_diff: memDiff === null ? null : parseFloat(memDiff),
+      mem_pct: memPct
     }
   };
 } catch (error) {
@@ -70,5 +68,4 @@ try {
 
 if (outputPath) {
   fs.writeFileSync(outputPath, JSON.stringify(result, null, 2));
-  console.log(`Benchmark data written to ${outputPath}`);
 }
