@@ -155,5 +155,24 @@
       "mem_diff": null,
       "mem_pct": null
     }
+  },
+  {
+    "timestamp": "2025-03-21T18:44:14.318Z",
+    "pr": {
+      "number": 25,
+      "title": "Added RAM",
+      "url": "https://github.com/imshrishk/dmd/pull/25",
+      "commit": "45d45b512b7bd453cfd3b1b68479c699488d090d"
+    },
+    "metrics": {
+      "pr_time": 119.11,
+      "master_time": 118.63,
+      "pr_memory": null,
+      "master_memory": null,
+      "time_diff": 0.481,
+      "time_pct": "0.41%",
+      "mem_diff": null,
+      "mem_pct": null
+    }
   }
 ]
