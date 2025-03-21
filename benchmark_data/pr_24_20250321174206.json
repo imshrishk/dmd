@@ -1,0 +1,19 @@
+{
+  "timestamp": "2025-03-21T17:42:06.590Z",
+  "pr": {
+    "number": 24,
+    "title": "Small rewrite",
+    "url": "https://github.com/imshrishk/dmd/pull/24",
+    "commit": "17062a4e84d4486b7ecbe87e15f1b73176d58a23"
+  },
+  "metrics": {
+    "pr_time": 113.538,
+    "master_time": 113.592,
+    "pr_memory": null,
+    "master_memory": null,
+    "time_diff": -0.054,
+    "time_pct": "-0.05%",
+    "memory_diff": null,
+    "memory_pct": null
+  }
+}
