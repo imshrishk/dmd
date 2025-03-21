@@ -8,24 +8,25 @@ const path = require('path');
 const outputPath = path.resolve(process.argv[7]);
 
 if (!fs.existsSync(benchmarkFile)) {
+  console.error(`Error: Benchmark file ${benchmarkFile} not found`);
   process.exit(1);
 }
 
-const benchmarkResults = JSON.parse(fs.readFileSync(benchmarkFile, 'utf8'));
+let benchmarkResults;
 let result;
-
 try {
+  const content = fs.readFileSync(benchmarkFile, 'utf8');
+  benchmarkResults = JSON.parse(content);
+
   const prResults = benchmarkResults.results[0];
   const masterResults = benchmarkResults.results[1];
 
   const prTimeAvg = prResults.mean.toFixed(3);
   const masterTimeAvg = masterResults.mean.toFixed(3);
 
-  // Fix memory calculation - check if max_rss exists and handle properly
   const prMemAvg = prResults.max_rss && prResults.max_rss.length > 0
     ? (prResults.max_rss.reduce((a, b) => a + b, 0) / prResults.max_rss.length / 1024).toFixed(1)
     : null;
-
   const masterMemAvg = masterResults.max_rss && masterResults.max_rss.length > 0
     ? (masterResults.max_rss.reduce((a, b) => a + b, 0) / masterResults.max_rss.length / 1024).toFixed(1)
     : null;
@@ -33,11 +34,9 @@ try {
   const timeDiff = (prResults.mean - masterResults.mean).toFixed(3);
   const timePct = ((prResults.mean / masterResults.mean - 1) * 100).toFixed(2) + '%';
 
-  // Calculate memory difference if both values are available
   const memDiff = (prMemAvg && masterMemAvg)
     ? (parseFloat(prMemAvg) - parseFloat(masterMemAvg)).toFixed(1)
     : null;
-
   const memPct = (prMemAvg && masterMemAvg && parseFloat(masterMemAvg) !== 0)
     ? ((parseFloat(prMemAvg) / parseFloat(masterMemAvg) - 1) * 100).toFixed(2) + '%'
     : null;
