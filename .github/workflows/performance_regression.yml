@@ -130,7 +130,6 @@ jobs:
           ' benchmark_results.json > benchmark_results_updated.json
           mv benchmark_results_updated.json benchmark_results.json
 
-          mv benchmark_results_updated.json benchmark_results.json
       - name: Parse results
         id: results
         run: |
@@ -488,6 +487,7 @@ jobs:
             echo "[]" > gh-pages-repo/benchmark_data/history.json
             echo "Created empty history.json file"
           fi
+
       - name: Upload benchmark data as artifact
         if: always()
         uses: actions/upload-artifact@v4
