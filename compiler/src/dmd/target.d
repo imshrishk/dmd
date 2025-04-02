@@ -18,9 +18,9 @@
  * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/target.d, _target.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/target.d, _target.d)
  * Documentation:  https://dlang.org/phobos/dmd_target.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/target.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/target.d
  */
 
 module dmd.target;
@@ -433,7 +433,7 @@ extern (C++) struct Target
         DoubleProperties.initialize();
         RealProperties.initialize();
 
-        isLP64 = isX86_64;
+        isLP64 = isX86_64 || isAArch64;
 
         // These have default values for 32 bit code, they get
         // adjusted for 64 bit code.

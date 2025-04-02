@@ -4,9 +4,9 @@
  * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/initsem.d, _initsem.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/initsem.d, _initsem.d)
  * Documentation:  https://dlang.org/phobos/dmd_initsem.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/initsem.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/initsem.d
  */
 
 module dmd.initsem;
@@ -153,7 +153,10 @@ Initializer initializerSemantic(Initializer init, Scope* sc, ref Type tx, NeedIn
             // that is not disabled.
             if (sd.hasRegularCtor(true))
             {
-                error(i.loc, "%s `%s` has constructors, cannot use `{ initializers }`, use `%s( initializers )` instead", sd.kind(), sd.toChars(), sd.toChars());
+                error(i.loc, "Cannot use %s initializer syntax for %s `%s` because it has a constructor",
+                    sd.kind(), sd.kind(), sd.toChars());
+                errorSupplemental(i.loc, "Use `%s( arguments )` instead of `{ initializers }`",
+                    sd.toChars());
                 return err();
             }
             sd.size(i.loc);
@@ -394,7 +397,10 @@ Initializer initializerSemantic(Initializer init, Scope* sc, ref Type tx, NeedIn
             if (needInterpret)
                 i.exp = i.exp.ctfeInterpret();
             if (i.exp.op == EXP.voidExpression)
-                error(i.loc, "variables cannot be initialized with an expression of type `void`. Use `void` initialization instead.");
+            {
+                error(i.loc, "variables cannot be initialized with an expression of type `void`");
+                errorSupplemental(i.loc, "only `= void;` is allowed, which prevents default initialization");
+            }
         }
         else
         {

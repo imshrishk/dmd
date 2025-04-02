@@ -4,9 +4,9 @@
  * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/tocsym.d, _toobj.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/toobj.d, _toobj.d)
  * Documentation:  https://dlang.org/phobos/dmd_toobj.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/toobj.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/toobj.d
  */
 
 module dmd.toobj;
@@ -35,7 +35,7 @@ import dmd.dmodule;
 import dmd.dscope;
 import dmd.dstruct;
 import dmd.dsymbol;
-import dmd.dsymbolsem : hasStaticCtorOrDtor, include, isFuncHidden;
+import dmd.dsymbolsem : hasStaticCtorOrDtor, include, isFuncHidden, isAbstract;
 import dmd.dtemplate;
 import dmd.errors;
 import dmd.errorsink;
@@ -1217,8 +1217,9 @@ private void genClassInfoForClass(ClassDeclaration cd, Symbol* sinit)
         if (Type.typeinfoclass.structsize != target.classinfosize)
         {
             debug printf("target.classinfosize = x%x, Type.typeinfoclass.structsize = x%x\n", target.classinfosize, Type.typeinfoclass.structsize);
-            .error(cd.loc, "%s `%s` mismatch between compiler (%d bytes) and object.d or object.di (%d bytes) found. Check installation and import paths with -v compiler switch.",
+            .error(cd.loc, "%s `%s` mismatch between compiler (%d bytes) and object.d or object.di (%d bytes) found",
                    cd.kind, cd.toPrettyChars, cast(uint)target.classinfosize, cast(uint)Type.typeinfoclass.structsize);
+            .errorSupplemental(cd.loc, "check installation and import paths with `-v` compiler switch");
             fatal();
         }
     }
@@ -1554,8 +1555,9 @@ private void InterfaceInfoToDt(ref DtBuilder dtb, InterfaceDeclaration id)
         {
             if (Type.typeinfoclass.structsize != offset)
             {
-                .error(id.loc, "%s `%s` mismatch between compiler (%d bytes) and object.d or object.di (%d bytes) found. Check installation and import paths with -v compiler switch.",
+                .error(id.loc, "%s `%s` mismatch between compiler (%d bytes) and object.d or object.di (%d bytes) found",
                        id.kind, id.toPrettyChars, cast(uint)offset, cast(uint)Type.typeinfoclass.structsize);
+                .errorSupplemental(id.loc, "check installation and import paths with `-v` compiler switch");
                 fatal();
             }
         }

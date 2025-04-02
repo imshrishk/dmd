@@ -10,9 +10,9 @@
  *              Copyright (C) 2000-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/backend/x86/cod1.d, backend/cod1.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/backend/x86/cod1.d, backend/cod1.d)
  * Documentation:  https://dlang.org/phobos/dmd_backend_x86_cod1.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/backend/x86/cod1.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/backend/x86/cod1.d
  */
 
 module dmd.backend.x86.cod1;
@@ -36,6 +36,7 @@ import dmd.backend.rtlsym;
 import dmd.backend.ty;
 import dmd.backend.type;
 import dmd.backend.x86.xmm;
+import dmd.backend.arm.cod1;
 
 import dmd.backend.cg : segfl, stackfl;
 
@@ -342,7 +343,7 @@ void genEEcode()
 uint gensaverestore(regm_t regm,ref CodeBuilder cdbsave,ref CodeBuilder cdbrestore)
 {
     //printf("gensaverestore2(%s)\n", regm_str(regm));
-    code *[regm.sizeof * 8] restore = void;
+    code *[regm.sizeof * 8] restore;
     reg_t i;
     uint stackused = 0;
 
@@ -646,6 +647,9 @@ void logexp(ref CodeBuilder cdb, elem* e, int jcond, FL fltarg, code* targ)
 void loadea(ref CodeBuilder cdb,elem* e,ref code cs,uint op,reg_t reg,targ_size_t offset,
             regm_t keepmsk,regm_t desmsk, RM rmx = RM.rw)
 {
+    if (cgstate.AArch64)
+        return dmd.backend.arm.cod1.loadea(cdb,e,cs,op,reg,offset,keepmsk,desmsk,rmx);
+
     code* c, cg, cd;
 
     debug
@@ -3521,8 +3525,7 @@ void cdfunc(ref CGstate cg, ref CodeBuilder cdb, elem* e, ref regm_t pretregs)
         // https://msdn.microsoft.com/en-US/library/ew5tede7%28v=vs.100%29
     }
 
-    int[XMM7 + 1] regsaved = void;
-    memset(regsaved.ptr, -1, regsaved.sizeof);
+    int[XMM7 + 1] regsaved = ~0;
     CodeBuilder cdbrestore;
     cdbrestore.ctor();
     regm_t saved = 0;

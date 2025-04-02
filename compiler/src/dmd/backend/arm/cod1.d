@@ -10,9 +10,9 @@
  *              Copyright (C) 2000-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/backend/arm/cod1.d, backend/cod1.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/backend/arm/cod1.d, backend/cod1.d)
  * Documentation:  https://dlang.org/phobos/dmd_backend_arm_cod1.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/backend/arm/cod1.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/backend/arm/cod1.d
  */
 
 module dmd.backend.arm.cod1;
@@ -58,6 +58,8 @@ nothrow:
 void loadFromEA(ref code cs, reg_t reg, uint szw, uint szr)
 {
     //debug printf("loadFromEA() reg: %d, szw: %d, szr: %d\n", reg, szw, szr);
+    //debug printf("EV1.Voffset: %d\n", cast(int)cs.IEV1.Voffset);
+    assert(szr <= szw);
     cs.Iop = INSTR.nop;
     assert(reg != NOREG);
     if (mask(reg) & INSTR.FLOATREGS)       // if floating point store
@@ -74,7 +76,7 @@ void loadFromEA(ref code cs, reg_t reg, uint szw, uint szr)
         {
             // LDR reg,[cs.base, #offset]
             assert(cs.index == NOREG);
-            uint imm12 = cs.Sextend;
+            uint imm12 = cast(uint)cs.IEV1.Voffset;
             if      (szw == 4) imm12 >>= 2;
             else if (szw == 8) imm12 >>= 3;
             else    assert(0);
@@ -85,7 +87,7 @@ void loadFromEA(ref code cs, reg_t reg, uint szw, uint szr)
         return;
     }
 
-    bool signExtend = (cs.Sextend & 7) == Extend.SXTB;
+    bool signExtend = (cs.Sextend & 4) != 0; // SXTB, SXTH, SXTW, SXTX
 
     if (cs.reg != NOREG)
     {
@@ -105,15 +107,17 @@ void loadFromEA(ref code cs, reg_t reg, uint szw, uint szr)
     }
     else if (cs.base != NOREG)
     {
-        // LDRB/LDRH/LDR reg,[cs.base, #0]
+        // LDRB/LDRH/LDR reg,[cs.base, #offset]
+        uint offset = 0; //cast(uint)cs.IEV1.Voffset; Voffset is added in by assignaddrc()
         if (szr == 1)
-            cs.Iop = signExtend ? INSTR.ldrsb_imm(szw == 8, reg, cs.base, 0)
-                                : INSTR.ldrb_imm (szw == 8, reg, cs.base, 0);
+            cs.Iop = signExtend ? INSTR.ldrsb_imm(szw == 8, reg, cs.base, offset)
+                                : INSTR.ldrb_imm (szw == 8, reg, cs.base, offset);
         else if (szr == 2)
-            cs.Iop = signExtend ? INSTR.ldrsh_imm(szw == 8, reg, cs.base, 0)
-                                : INSTR.ldrh_imm (szw == 8, reg, cs.base, 0);
+            cs.Iop = signExtend ? INSTR.ldrsh_imm(szw == 8, reg, cs.base, offset)
+                                : INSTR.ldrh_imm (szw == 8, reg, cs.base, offset);
         else
-            cs.Iop = INSTR.ldr_imm_gen(szw == 8, reg, cs.base, 0);
+            cs.Iop = signExtend ? INSTR.ldrsw_imm(offset, cs.base, reg)
+                                : INSTR.ldr_imm_gen(szw == 8, reg, cs.base, offset);
     }
     else
         assert(0);
@@ -176,12 +180,13 @@ void storeToEA(ref code cs, reg_t reg, uint sz)
     else if (cs.base != NOREG)
     {
         // STRB/STRH/STR reg,[cs.base, #0]
+        uint offset = 0; //cast(uint)cs.IEV1.Voffset; Voffset added in by assignaddr()
         if (sz == 1)
-            cs.Iop = INSTR.strb_imm(reg, cs.base, 0);
+            cs.Iop = INSTR.strb_imm(reg, cs.base, offset);
         else if (sz == 2)
-            cs.Iop = INSTR.strh_imm(reg, cs.base, 0);
+            cs.Iop = INSTR.strh_imm(reg, cs.base, offset);
         else
-            cs.Iop = INSTR.str_imm_gen(sz == 8, reg, cs.base, 0);
+            cs.Iop = INSTR.str_imm_gen(sz == 8, reg, cs.base, offset);
     }
     else
         assert(0);
@@ -495,6 +500,7 @@ void loadea(ref CodeBuilder cdb,elem* e,ref code cs,uint op,reg_t reg,targ_size_
     getlvalue(cdb, cs, e, keepmsk, rmx);
     cs.IEV1.Voffset += offset;
 
+    assert(op != LEA);                  // AArch64 does not have LEA
     loadFromEA(cs,reg,sz == 8 ? 8 : 4,sz);
 
     getregs(cdb, desmsk);                  // save any regs we destroy
@@ -1105,7 +1111,8 @@ void getlvalue(ref CodeBuilder cdb,ref code pcs,elem* e,regm_t keepmsk,RM rm = R
             }
             pcs.IEV1.Vsym = s;
             pcs.IEV1.Voffset = e.Voffset;
-            pcs.Sextend = cast(ubyte)tyToExtend(ty);  // sign or zero extension
+            if (!tyfloating(ty))
+                pcs.Sextend = cast(ubyte)tyToExtend(ty);  // sign or zero extension
             if (sz == 1)
             {
                 s.Sflags |= GTbyte;
@@ -1435,9 +1442,9 @@ void cdfunc(ref CGstate cg, ref CodeBuilder cdb, elem* e, ref regm_t pretregs)
     /* stack for parameters is allocated all at once - no pushing
      * and ensure it is aligned
      */
-printf("STACKALIGN: %d\n", STACKALIGN);
+//printf("STACKALIGN: %d\n", STACKALIGN);
     uint numalign = -numpara & (STACKALIGN - 1);
-printf("numalign: %d numpara: %d\n", numalign, numpara);
+//printf("numalign: %d numpara: %d\n", numalign, numpara);
     cod3_stackadj(cdb, numalign + numpara);
     cdb.genadjesp(numalign + numpara);
     cgstate.stackpush += numalign + numpara;

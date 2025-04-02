@@ -7,9 +7,9 @@
  * Copyright:   Copyright (C) 2024 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/backend/arm/instr.d, backend/cod3.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/backend/arm/instr.d, backend/cod3.d)
  * Documentation:  https://dlang.org/phobos/dmd_backend_arm_insrt.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/backend/arm/instr.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/backend/arm/instr.d
  */
 
 module dmd.backend.arm.instr;
@@ -1003,6 +1003,11 @@ struct INSTR
         uint imm12 = (cast(uint)offset >> scale) & 0xFFF;
         return ldst_pos(size,1,opc,imm12,Rn,Vt);
     }
+
+    /* https://www.scs.stanford.edu/~zyedidia/arm64/ldrsw_imm.html
+     * LDRSW <Xt>, [<Xn|SP>{, #<pimm>}]
+     */
+    static uint ldrsw_imm(uint imm12, reg_t Rn, reg_t Rt) { return ldst_pos(2,0,2,imm12,Rn,Rt); }
 
     /* } */
 

@@ -6,9 +6,9 @@
  * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/dscope.d, _dscope.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/dscope.d, _dscope.d)
  * Documentation:  https://dlang.org/phobos/dmd_dscope.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/dscope.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/dscope.d
  */
 
 module dmd.dscope;
@@ -64,7 +64,7 @@ private extern (D) struct BitFields
     bool inTemplateConstraint; /// inside template constraint
     Contract contract;
     bool ctfe;              /// inside a ctfe-only expression
-    bool traitsCompiles;    /// inside __traits(compile)
+    bool traitsCompiles;    /// inside __traits(compile) or is-expression
     /// ignore symbol visibility
     /// https://issues.dlang.org/show_bug.cgi?id=15907
     bool ignoresymbolvisibility;

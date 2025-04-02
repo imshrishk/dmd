@@ -260,12 +260,12 @@ void disassemble(uint c) @trusted
     puts("   ");
 
     int i;
-    char[80] p0;
+    char[80] p0 = '\0';
     const(char)[] sep;
     const(char)[] s2;
     const(char)[] s3;
-    char[BUFMAX] buf = void;
-    char[14] rbuf = void;
+    char[BUFMAX] buf = '\0';
+    char[14] rbuf = '\0';
 
     buf[0] = 0;
     sep = ",";
@@ -284,7 +284,7 @@ void disassemble(uint c) @trusted
         }
     }
 
-    char[8+1] p1buf = void;
+    char[8+1] p1buf = '\0';
     const p1len = snprintf(p1buf.ptr,p1buf.length,"%08x", ins);
     if (log) debug printf("ins: %s %d %d\n", p1buf.ptr, field(ins, 28, 24), field(ins, 21, 21));
     const(char)[] p1 = p1buf[0 .. p1len];
@@ -542,7 +542,7 @@ void disassemble(uint c) @trusted
         p2 = regString(sf, Rd);
         if (hw)
         {
-            __gshared char[5 + hw.sizeof * 3 + 1 + 1] P4 = void;
+            __gshared char[5 + hw.sizeof * 3 + 1 + 1] P4 = '\0';
             const n = snprintf(P4.ptr, P4.length, "lsl #%d", hw * 16);
             p4 = P4[0 .. n];
         }
@@ -1430,7 +1430,7 @@ void disassemble(uint c) @trusted
         string[4] shiftstring = [ "", "lsr ", "asr ", "ror " ];
         if (imm6)
         {
-            __gshared char[4 + 3 + imm6.sizeof * 3 + 1 + 1] P5 = void;
+            __gshared char[4 + 3 + imm6.sizeof * 3 + 1 + 1] P5 = '\0';
             const n = snprintf(P5.ptr, P5.length, ((imm6 < 10) ? "%s #%d" : "#0x%X"), shiftstring[shift].ptr, imm6);
             p5 = P5[0 .. n];
         }
@@ -1471,7 +1471,7 @@ void disassemble(uint c) @trusted
         if (immed6) // defaults to 0
         {
             string[4] tab2 = [ "lsl", "lsr", "asr", "reserved" ];
-            __gshared char[1 + 8 + 1 + 3 + immed6.sizeof * 3 + 1 + 1] P5buf = void;
+            __gshared char[1 + 8 + 1 + 3 + immed6.sizeof * 3 + 1 + 1] P5buf = '\0';
             const n = snprintf(P5buf.ptr, P5buf.length, ((immed6 < 10) ? "%s #%d".ptr : "#0x%X".ptr), tab2[shift].ptr, immed6);
             p5 = P5buf[0 .. n];
         }
@@ -1534,7 +1534,7 @@ void disassemble(uint c) @trusted
         else
             p4 = regString(sf, Rm);
 
-        __gshared char[1 + 4 + 1 + 3 + imm3.sizeof * 3 + 1 + 1] P5buf2 = void;
+        __gshared char[1 + 4 + 1 + 3 + imm3.sizeof * 3 + 1 + 1] P5buf2 = '\0';
         if (imm3 == 0)
             p5 = extend;
         else
@@ -1593,7 +1593,7 @@ void disassemble(uint c) @trusted
             p4 = regString(sf, Rm);
             if (imm3)
             {
-                __gshared char[7 + imm3.sizeof * 3 + 1] P5buf3 = void;
+                __gshared char[7 + imm3.sizeof * 3 + 1] P5buf3 = '\0';
                 size_t n = snprintf(P5buf3.ptr, P5buf3.length, ((imm3 < 10) ? "LSL #%d" : "LSL #0x%X"), imm3);
                 assert(n <= P5buf3.length);
                 p5 = P5buf3[0 .. n];
@@ -2237,8 +2237,13 @@ void disassemble(uint c) @trusted
         bool is64 = false;
         switch (ldr(size, VR, opc))
         {
-            case ldr(0,0,0): p1 = "strb";  goto Lldr;
-            case ldr(0,0,1): p1 = "ldrb";  goto Lldr;
+            case ldr(0,0,0): p1 = "strb";  goto Lldr8;  // https://www.scs.stanford.edu/~zyedidia/arm64/strb_imm.html
+            case ldr(0,0,1): p1 = "ldrb";  goto Lldr8;
+            Lldr8:
+                p2 = regString(is64, Rt);
+                p3 = eaString(0, cast(ubyte)Rn, imm12);
+                break;
+
             case ldr(0,0,2): p1 = "ldrsb"; goto Lldr64;
             case ldr(0,0,3): p1 = "ldrsb"; goto Lldr;
             case ldr(1,0,0): p1 = "strh";  goto Lldr;
@@ -2284,35 +2289,48 @@ void disassemble(uint c) @trusted
     //printf("%x\n", field(ins, 31, 25));
     //printf("p1: %s\n", p1);
 
+    auto plen = 1 + p1.length;
     put(' ');
     puts(p1);
     if (p2.length > 0)
     {
         foreach (len1; p1.length .. 9)
+        {
+            ++plen;
             put(' ');
+        }
+        plen += 1 + s2.length;
         put(' ');
         puts(s2);
         if (p2[0] != ' ')
+        {
+            plen += p2.length;
             puts(p2);
+        }
         if (p3.length > 0)
         {
+            plen += sep.length + s3.length + p3.length;
             puts(sep);
             puts(s3);
             puts(p3);
             if (p4.length > 0)
             {
+                plen += 1 + p4.length;
                 put(',');
                 puts(p4);
                 if (p5.length > 0)
                 {
+                    plen += 1 + p5.length;
                     put(',');
                     puts(p5);
                     if (p6.length > 0)
                     {
+                        plen += 1 + p6.length;
                         put(',');
                         puts(p6);
                         if (p7.length > 0)
                         {
+                            plen += 1 + p7.length;
                             put(',');
                             puts(p7);
                         }
@@ -2324,7 +2342,9 @@ void disassemble(uint c) @trusted
 
     if (bURL && url)
     {
-        puts("    // https://www.scs.stanford.edu/~zyedidia/arm64/encodingindex.html#");
+        for (; plen < 29; ++plen)
+            put(' ');
+        puts(" // https://www.scs.stanford.edu/~zyedidia/arm64/encodingindex.html#");
         puts(url);
     }
 }
@@ -2473,7 +2493,7 @@ const(char)[] signedWordtostring(int w)
 {
     __gshared char[1 + 3 + 1 + w.sizeof * 3 + 1 + 1] EA;
 
-    const n = snprintf(EA.ptr, EA.length, ((w <= 16 && w >= -32) ? "#%d" : "#0x%X"), w);
+    const n = snprintf(EA.ptr, EA.length, ((w <= 16) ? "#%d" : "#0x%X"), w);
     return EA[0 .. n];
 }
 

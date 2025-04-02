@@ -16,9 +16,9 @@
  *              Copyright (C) 2000-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/backend/arm/cod4.d, backend/cod4.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/backend/arm/cod4.d, backend/cod4.d)
  * Documentation:  https://dlang.org/phobos/dmd_backend_arm_cod4.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/backend/arm/cod4.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/backend/arm/cod4.d
  */
 
 module dmd.backend.arm.cod4;
@@ -42,6 +42,7 @@ import dmd.backend.ty;
 import dmd.backend.evalu8 : el_toldoubled;
 import dmd.backend.x86.xmm;
 import dmd.backend.arm.cod1 : getlvalue, loadFromEA, storeToEA;
+import dmd.backend.arm.cod2 : tyToExtend;
 import dmd.backend.arm.cod3 : COND, conditionCode, gentstreg;
 import dmd.backend.arm.instr;
 
@@ -133,9 +134,22 @@ void cdeq(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
                 getregs(cdb, cs.reg);
                 const p = cast(targ_size_t*) &(e2.EV);
                 movregconst(cdb,cs.reg,*p,sz == 8);
-                freenode(e2);
-                goto Lp;
             }
+            else
+            {
+                /* Move constant into r, then store r into EA
+                 */
+                regm_t m = tyfloating(tyml) ? INSTR.FLOATREGS : cg.allregs;
+                m &= ~(mask(cs.base) | mask(cs.index));
+                assert(NOREG < 64);  // otherwise mask(NOREG) will not work
+                reg_t r = allocreg(cdb, m, tyml);
+                const p = cast(targ_size_t*) &(e2.EV);
+                movregconst(cdb,r,*p,sz == 8);
+                storeToEA(cs,r,sz);
+                cdb.gen(&cs);
+            }
+            freenode(e2);
+            goto Lp;
         }
         retregs = allregs;        // pick a reg, any reg
     }
@@ -380,7 +394,7 @@ void cdaddass(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
         uint imm3 = 0;                // shift amount
         uint S = forccs != 0;
         uint opt = 0;
-        uint option = 0;
+        uint option = cast(ubyte)tyToExtend(tyml);
         reg_t Rm = reg2;
         reg_t Rn = reg1;
         reg_t Rd = reg1;
@@ -617,7 +631,7 @@ void cdmulass(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
     {
         retregs = cg.allregs & ~earegm & ~regm2;
         reg = allocreg(cdb,retregs,tyml);
-        loadFromEA(cs,reg,sz,sz == 8 ? 8 : 4);
+        loadFromEA(cs,reg,sz == 8 ? 8 : 4, sz);
         cdb.gen(&cs);
     }
     getregs(cdb,retregs);           // destroy these regs
@@ -682,7 +696,7 @@ void cddivass(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
     regm_t earegm = mask(cs.base) | mask(cs.index);
     regm_t retregs;
     reg_t Rdividend;
-    if (cs.reg)
+    if (cs.reg != NOREG)
     {
         Rdividend = cs.reg;
         retregs = mask(Rdividend);
@@ -768,7 +782,7 @@ void cdshass(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
     {
         retregs = cg.allregs & ~earegm & ~Rshiftcntm;
         Rshiftee = allocreg(cdb,retregs,tyml);
-        loadFromEA(cs,Rshiftee,sz,sz == 8 ? 8 : 4);
+        loadFromEA(cs,Rshiftee,sz == 8 ? 8 : 4,sz);
         cdb.gen(&cs);
     }
 
@@ -870,6 +884,7 @@ void cdcmp(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
     /* See if we should reverse the comparison, so a JA => JC, and JBE => JNC
      * (This is already reflected in the jop)
      */
+    if (0)
     if ((jop == COND.cs || jop == COND.cc) &&
         (op == OPgt || op == OPle) &&
         (tyuns(tym) || tyuns(e2.Ety))
@@ -1496,7 +1511,7 @@ void cdshtlng(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
             // EA:  LDR w0,[sp,#8]
             // reg: MOV w0,w1
             code cs;
-            getlvalue(cdb,cs,e,0,RM.load);
+            getlvalue(cdb,cs,e1,0,RM.load);
             cs.Sextend = (cs.Sextend & 0x100) | Extend.LSL;
             reg = allocreg(cdb,retregs,TYint);
             loadFromEA(cs,reg,4,4);
@@ -1586,7 +1601,7 @@ void cdshtlng(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
                     }
                     else
                     {
-                        // BUG: not generating LDRSH
+                        // TODO AArch64: not generating LDRSH
                         loadFromEA(cs,reg,8,2);               // LDRSH Xreg,[sp,#8]
                         cdb.gen(&cs);
                     }
@@ -1615,7 +1630,7 @@ void cdshtlng(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
                     }
                     else
                     {
-                        // BUG: not generating LDRSW
+                        cs.Sextend = cast(ubyte)tyToExtend(TYint);
                         loadFromEA(cs,reg,8,4);              // LDRSW Xreg,[sp,#8]
                         cdb.gen(&cs);
                     }

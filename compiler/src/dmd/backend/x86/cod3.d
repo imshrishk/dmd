@@ -13,9 +13,9 @@
  *              Copyright (C) 2000-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/backend/x86/cod3.d, backend/cod3.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/backend/x86/cod3.d, backend/cod3.d)
  * Documentation:  https://dlang.org/phobos/dmd_backend_x86_cod3.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/backend/x86/cod3.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/backend/x86/cod3.d
  */
 
 module dmd.backend.x86.cod3;
@@ -3799,6 +3799,7 @@ void prolog_setupalloca(ref CodeBuilder cdb)
  *
  * Emit Dwarf info for these saves.
  * Params:
+ *      cg = code state
  *      cdb = append generated instructions to this
  *      topush = mask of registers to push
  *      cfa_offset = offset of frame pointer from CFA
@@ -3807,6 +3808,10 @@ void prolog_setupalloca(ref CodeBuilder cdb)
 @trusted
 void prolog_saveregs(ref CGstate cg, ref CodeBuilder cdb, regm_t topush, int cfa_offset)
 {
+    if (cg.AArch64)
+        return dmd.backend.arm.cod3.prolog_saveregs(cg, cdb, topush, cfa_offset);
+
+    //printf("prolog_saveregs() topush: %s pushoffuse: %d\n", regm_str(topush), cg.pushoffuse);
     if (cg.pushoffuse)
     {
         // Save to preallocated section in the stack frame
@@ -3905,6 +3910,9 @@ void prolog_saveregs(ref CGstate cg, ref CodeBuilder cdb, regm_t topush, int cfa
 @trusted
 private void epilog_restoreregs(ref CGstate cg, ref CodeBuilder cdb, regm_t topop)
 {
+    //printf("epilog_restoreregs() topop: %s pushoffuse: %d\n", regm_str(topop), cg.pushoffuse);
+    assert(!cg.AArch64);
+
     debug
     if (topop & ~(XMMREGS | 0xFFFF))
         printf("fregsaved = %s, mfuncreg = %s\n",regm_str(fregsaved),regm_str(cg.mfuncreg));

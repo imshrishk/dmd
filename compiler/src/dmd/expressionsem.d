@@ -6,9 +6,9 @@
  * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/expressionsem.d, _expressionsem.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/expressionsem.d, _expressionsem.d)
  * Documentation:  https://dlang.org/phobos/dmd_expressionsem.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/expressionsem.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/expressionsem.d
  */
 
 module dmd.expressionsem;
@@ -7304,6 +7304,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             sc2.tinst = null;
             sc2.minst = null;
             sc2.fullinst = true;
+            sc2.traitsCompiles = true;
             Type t = dmd.typesem.trySemantic(e.targ, e.loc, sc2);
             sc2.pop();
             if (!t) // errors, so condition is false
@@ -11762,6 +11763,7 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
 
         res = new LoweredAssignExp(ae, res);
         res.type = ae.type;
+        res = res.checkGC(sc);
 
         return res;
     }
@@ -12794,6 +12796,57 @@ private extern (C++) final class ExpressionSemanticVisitor : Visitor
             e = e.expressionSemantic(sc);
             result = e;
             return;
+        }
+
+        // Inline the expression, if possible.
+        PowExp pe = cast(PowExp)e;
+        if (pe.e1.type.isScalar() && pe.e2.isIntegerExp())
+        {
+            Expression one;
+            if (pe.e1.type.isIntegral()) {
+                one = new IntegerExp(e.loc, 1, pe.e1.type);
+            } else {
+                one = new RealExp(e.loc, CTFloat.one, pe.e1.type);
+            }
+
+            const expo = cast(sinteger_t)pe.e2.toInteger();
+            // Replace e1 ^^ -1 with 1 / e1
+            if (expo == -1)
+            {
+                Expression ex = new DivExp(exp.loc, one, pe.e1);
+                ex = ex.expressionSemantic(sc);
+                result = ex;
+                return;
+            }
+            // Replace e1 ^^ 0 with (e1, 1)
+            else if (expo == 0)
+            {
+                Expression ex = new CommaExp(exp.loc, pe.e1, one, exp);
+                ex = ex.expressionSemantic(sc);
+                result = ex;
+                return;
+            }
+            // Replace e1 ^^ 1 with e1
+            else if (expo == 1)
+            {
+                Expression ex = pe.e1;
+                ex.loc = exp.loc;
+                ex = ex.expressionSemantic(sc);
+                result = ex;
+                return;
+            }
+            // Replace e1 ^^ 2 with e1 * e1
+            else if (expo == 2)
+            {
+                auto v = copyToTemp(STC.const_, "__powtmp", pe.e1);
+                auto ve = new VarExp(exp.loc, v);
+                auto de = new DeclarationExp(exp.e1.loc, v);
+                auto me = new MulExp(exp.e2.loc, ve, ve);
+                Expression ex = new CommaExp(exp.loc, de, me, exp);
+                ex = ex.expressionSemantic(sc);
+                result = ex;
+                return;
+            }
         }
 
         Module mmath = Module.loadStdMath();

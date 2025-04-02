@@ -5,9 +5,9 @@
  *              Copyright (C) 2000-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/backend/x86/cgcod.d, backend/cgcod.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/backend/x86/cgcod.d, backend/cgcod.d)
  * Documentation:  https://dlang.org/phobos/dmd_backend_x86_cgcod.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/backend/x86/cgcod.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/backend/x86/cgcod.d
  */
 
 module dmd.backend.x86.cgcod;
@@ -1482,7 +1482,7 @@ reg_t findreg(regm_t regm, int line, const(char)* file)
 void freenode(elem* e)
 {
     elem_debug(e);
-    //dbg_printf("freenode(%p) : comsub = %d, count = %d\n",e,e.Ecomsub,e.Ecount);
+    //printf("freenode(%p) : Ecount = %d, Ecomsub = %d\n",e,e.Ecount,e.Ecomsub);
     if (e.Ecomsub--) return;             /* usage count                  */
     if (e.Ecount)                        /* if it was a CSE              */
     {
@@ -1499,7 +1499,7 @@ void freenode(elem* e)
 }
 
 /*********************************
- * Reset Ecomsub for all elem nodes, i.e. reverse the effects of freenode().
+ * Reset Ecomsub for all elem nodes to Ecount, i.e. reverse the effects of freenode().
  */
 
 @trusted
@@ -1621,7 +1621,10 @@ static if (0)
 }
         tym = tybasic(tym);
         uint size = _tysize[tym];
-        outretregs &= mES | cgstate.allregs | XMMREGS | INSTR.FLOATREGS;
+        if (cgstate.AArch64)
+            outretregs &= cgstate.allregs | INSTR.FLOATREGS;
+        else
+            outretregs &= mES | cgstate.allregs | XMMREGS | INSTR.FLOATREGS;
         regm_t retregs = outretregs;
         regm_t[] lastRetregs = cgstate.lastRetregs[];
 
@@ -1837,7 +1840,7 @@ void useregs(regm_t regm)
 @trusted
 void getregs(ref CodeBuilder cdb, regm_t r)
 {
-    //printf("getregs(x%x) %s\n", r, regm_str(r));
+    //printf("getregs() %s\n", regm_str(r));
     regm_t ms = r & cgstate.regcon.cse.mops;           // mask of common subs we must save
     useregs(r);
     cgstate.regcon.cse.mval &= ~r;
@@ -1869,6 +1872,7 @@ void getregsNoSave(regm_t r)
 @trusted
 private void cse_save(ref CodeBuilder cdb, regm_t ms)
 {
+    //printf("cse_save() ms: %s\n", regm_str(ms));
     assert((ms & cgstate.regcon.cse.mops) == ms);
     cgstate.regcon.cse.mops &= ~ms;
 
@@ -1959,6 +1963,7 @@ void cse_flush(ref CodeBuilder cdb, int do87)
 @trusted
 bool cssave(elem* e, regm_t regm, bool opsflag)
 {
+    //printf("cssave() e: %p regm: %s opsflag: %d\n", e, regm_str(regm), opsflag);
     bool result = false;
 
     /*if (e.Ecount && e.Ecount == e.Ecomsub)*/
@@ -1968,8 +1973,10 @@ bool cssave(elem* e, regm_t regm, bool opsflag)
             return false;
 
         //printf("cssave(e = %p, regm = %s, opsflag = x%x)\n", e, regm_str(regm), opsflag);
-        regm &= mBP | ALLREGS | mES | XMMREGS;    /* just to be sure              */
-
+        if (cgstate.AArch64)
+            regm &= cgstate.allregs | INSTR.FLOATREGS;
+        else
+            regm &= mBP | ALLREGS | mES | XMMREGS;    /* just to be sure              */
 /+
         /* Do not register CSEs if they are register variables and      */
         /* are not operator nodes. This forces the register allocation  */
@@ -2089,10 +2096,6 @@ regm_t getscratch()
 @trusted
 private void comsub(ref CodeBuilder cdb,elem* e, ref regm_t pretregs)
 {
-    tym_t tym;
-    regm_t regm,emask;
-    reg_t reg;
-    uint byte_,sz;
     const AArch64 = cgstate.AArch64;
 
     //printf("comsub(e = %p, pretregs = %s)\n",e,regm_str(pretregs));
@@ -2114,7 +2117,7 @@ private void comsub(ref CodeBuilder cdb,elem* e, ref regm_t pretregs)
     /* First construct a mask, emask, of all the registers that
      * have the right contents.
      */
-    emask = 0;
+    regm_t emask = 0;
     foreach (i, ref v; cgstate.regcon.cse.value[])
     {
         //printf("regcon.cse.value[%d] = %p\n",cast(int)i,v);
@@ -2157,16 +2160,16 @@ private void comsub(ref CodeBuilder cdb,elem* e, ref regm_t pretregs)
             elem_print(cgstate.regcon.cse.value[0]);
     }
 
-    tym = tybasic(e.Ety);
-    sz = _tysize[tym];
-    byte_ = sz == 1;
+    tym_t tym = tybasic(e.Ety);
+    uint sz = _tysize[tym];
+    uint byte_ = sz == 1;
 
     if (sz <= REGSIZE ||
         (!AArch64 && tyxmmreg(tym) && config.fpxmmregs)) // if data will fit in one register
     {
         /* First see if it is already in a correct register     */
 
-        regm = emask & pretregs;
+        regm_t regm = emask & pretregs;
         if (regm == 0)
             regm = emask;               /* try any other register       */
         if (regm)                       /* if it's in a register        */
@@ -2185,6 +2188,7 @@ private void comsub(ref CodeBuilder cdb,elem* e, ref regm_t pretregs)
         foreach (ref cse; CSE.filter(e))
         {
             regm_t retregs;
+            reg_t reg;
 
             if (cse.flags & CSEsimple)
             {
@@ -2236,7 +2240,14 @@ private void comsub(ref CodeBuilder cdb,elem* e, ref regm_t pretregs)
                 else
                 {
                     retregs = pretregs;
-                    if (!AArch64 && byte_ && !(retregs & BYTEREGS))
+                    if (AArch64)
+                    {
+                        if (!(retregs & (cgstate.allregs | INSTR.FLOATREGS)))
+                        {
+                            retregs = tyfloating(tym) ? INSTR.FLOATREGS : cgstate.allregs;
+                        }
+                    }
+                    else if (byte_ && !(retregs & BYTEREGS))
                         retregs = BYTEREGS;
                     reg = allocreg(cdb,retregs,tym);
                     gen_loadcse(cdb, cse.e.Ety, reg, cse.slot);
@@ -2277,7 +2288,7 @@ private void comsub(ref CodeBuilder cdb,elem* e, ref regm_t pretregs)
         }
 
         /* Look for right vals in any regs      */
-        regm = pretregs & mMSW;
+        regm_t regm = pretregs & mMSW;
         if (emask & regm)
             msreg = findreg(emask & regm);
         else if (emask & mMSW)
@@ -2313,13 +2324,13 @@ private void comsub(ref CodeBuilder cdb,elem* e, ref regm_t pretregs)
         if (((csemask | emask) & DOUBLEREGS_16) == DOUBLEREGS_16)
         {
             immutable reg_t[4] dblreg = [ BX,DX,NOREG,CX ];
-            for (reg = 0; reg != NOREG; reg = dblreg[reg])
+            for (reg_t reg = 0; reg != NOREG; reg = dblreg[reg])
             {
                 assert(cast(int) reg >= 0 && reg <= 7);
                 if (mask(reg) & csemask)
                     loadcse(cdb,e,reg,mask(reg));
             }
-            regm = DOUBLEREGS_16;
+            regm_t regm = DOUBLEREGS_16;
             fixresult(cdb,e,regm,pretregs);
             return;
         }
@@ -2642,7 +2653,9 @@ void codelem(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs,uin
         assert(0);
     }
 
-    if (!(constflag & 1) && pretregs & (mES | ALLREGS | mBP | XMMREGS) & ~cg.regcon.mvar)
+    regm_t tmask = cg.AArch64 ? (cg.allregs | INSTR.FLOATREGS)
+                              : (mES | ALLREGS | mBP | XMMREGS);
+    if (!(constflag & 1) && pretregs & tmask & ~cg.regcon.mvar)
         pretregs &= ~cg.regcon.mvar;                      /* can't use register vars */
 
     uint op = e.Eoper;
@@ -2661,7 +2674,14 @@ void codelem(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs,uin
             if (e.Ecount)                          /* if common subexp     */
             {
                 /* if no return value       */
-                if ((pretregs & (mSTACK | mES | ALLREGS | mBP | XMMREGS)) == 0)
+                if (cg.AArch64)
+                {
+                    if ((pretregs & (cg.allregs | INSTR.FLOATREGS)) == 0)
+                    {
+                        pretregs = (tyfloating(e.Ety)) ? INSTR.FLOATREGS : cg.allregs;
+                    }
+                }
+                else if ((pretregs & (mSTACK | mES | ALLREGS | mBP | XMMREGS)) == 0)
                 {
                     if (pretregs & (mST0 | mST01))
                     {
@@ -2747,6 +2767,10 @@ void codelem(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs,uin
 
                     default:
                         break;
+                }
+                if (cg.AArch64)
+                {
+                    pretregs = tyfloating(e.Ety) ? INSTR.FLOATREGS : cg.allregs;
                 }
             }
             loaddata(cdb,e,pretregs);
@@ -3014,9 +3038,13 @@ const(char)* regm_str(regm_t rm)
                     strcat(p, "sp");
                 else if (j == 29)
                     strcat(p, "fp");
+                else if (j == NOREG)
+                    strcat(p, "NOREG");
+                else if (j == PSW)
+                    strcat(p, "PSW");
                 else
                 {
-                    char[4] buf = void;
+                    char[4] buf;
                     char c = j < 32 ? 'r' : 'f';
                     sprintf(buf.ptr, "%c%u", c, j);
                     strcat(p, buf.ptr);

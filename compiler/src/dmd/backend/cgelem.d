@@ -11,9 +11,9 @@
  *              Copyright (C) 2000-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/backend/cgelem.d, backend/cgelem.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/backend/cgelem.d, backend/cgelem.d)
  * Documentation:  https://dlang.org/phobos/dmd_backend_cgelem.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/backend/cgelem.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/backend/cgelem.d
  *              Add coverage tests to https://github.com/dlang/dmd/blob/master/test/runnable/testcgelem.d
  */
 
@@ -1861,7 +1861,7 @@ private elem* elor(elem* e, Goal goal)
      */
     if (sz == 4 && OPTIMIZER)
     {
-        elem*[4] ops = void;
+        elem*[4] ops;
         size_t opsi = 0;
         if (fillinops(ops, opsi, OPor, e) && opsi == ops.length)
         {
@@ -3286,6 +3286,8 @@ private elem* elind(elem* e, Goal goal)
     switch (e1.Eoper)
     {
         case OPrelconst:
+            if (sytab[e1.Vsym.Sclass] & SCDATA && e1.Vsym.Sfl != FL.func && cgstate.AArch64)
+                break;
             e.E1.ET = e.ET;
             e = el_selecte1(e);
             e.Eoper = OPvar;
@@ -4430,13 +4432,19 @@ private elem* elcmp(elem* e, Goal goal)
         tym_t tym;
         int sz = tysize(e2.Ety);
 
-        if (e1.Eoper == OPu16_32 && e2.Vulong <= cast(targ_ulong) SHORTMASK ||
-            e1.Eoper == OPs16_32 &&
-            e2.Vlong == cast(targ_short) e2.Vlong)
+        /* The AArch64 does not have a compare short instruction, so the comparisons
+         * have to be done with the LDRH, etc., instructions
+         */
+        if (config.target_cpu != TARGET_AArch64)
         {
-            tym = (uns || e1.Eoper == OPu16_32) ? TYushort : TYshort;
-            e.E2 = el_una(OP32_16,tym,e2);
-            goto L2;
+            if (e1.Eoper == OPu16_32 && e2.Vulong <= cast(targ_ulong) SHORTMASK ||
+                e1.Eoper == OPs16_32 &&
+                e2.Vlong == cast(targ_short) e2.Vlong)
+            {
+                tym = (uns || e1.Eoper == OPu16_32) ? TYushort : TYshort;
+                e.E2 = el_una(OP32_16,tym,e2);
+                goto L2;
+            }
         }
 
         /* Try to convert to byte/word comparison for ((x & c)==d)

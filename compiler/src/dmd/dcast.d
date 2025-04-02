@@ -4,9 +4,9 @@
  * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/dcast.d, _dcast.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/dcast.d, _dcast.d)
  * Documentation:  https://dlang.org/phobos/dmd_dcast.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/dcast.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/dcast.d
  */
 
 module dmd.dcast;
@@ -27,7 +27,6 @@ import dmd.dstruct;
 import dmd.dsymbol;
 import dmd.dsymbolsem;
 import dmd.errors;
-import dmd.escape;
 import dmd.expression;
 import dmd.expressionsem;
 import dmd.func;
@@ -2728,13 +2727,6 @@ Expression castTo(Expression e, Scope* sc, Type t, Type att = null)
         ArrayLiteralExp ae = e;
 
         Type tb = t.toBasetype();
-        if (tb.ty == Tarray)
-        {
-            if (checkArrayLiteralEscape(*sc, ae, false))
-            {
-                return ErrorExp.get();
-            }
-        }
 
         if (e.type == t)
         {

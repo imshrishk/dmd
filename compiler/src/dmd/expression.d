@@ -6,9 +6,9 @@
  * Copyright:   Copyright (C) 1999-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/expression.d, _expression.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/expression.d, _expression.d)
  * Documentation:  https://dlang.org/phobos/dmd_expression.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/expression.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/expression.d
  */
 
 module dmd.expression;
@@ -306,6 +306,7 @@ extern (C++) abstract class Expression : ASTNode
     {
     bool parens;    // if this is a parenthesized expression
     bool rvalue;    // true if this is considered to be an rvalue, even if it is an lvalue
+    bool gcPassDone; // `checkGC` has been run on this expression
     }
     import dmd.common.bitfields;
     mixin(generateBitFields!(BitFields, ubyte));
@@ -3632,6 +3633,7 @@ extern (C++) final class CastExp : UnaExp
         if (rvalue || !e1.isLvalue())
             return false;
         return (to.ty == Tsarray && (e1.type.ty == Tvector || e1.type.ty == Tsarray)) ||
+            (to.ty == Taarray && e1.type.ty == Taarray) ||
             e1.type.mutableOf.unSharedOf().equals(to.mutableOf().unSharedOf());
     }
 
@@ -3850,11 +3852,20 @@ extern (C++) final class CommaExp : BinExp
     /// false will be passed will be from the parser.
     bool allowCommaExp;
 
+    /// The original expression before any rewriting occurs.
+    /// This is used in error messages.
+    Expression originalExp;
 
     extern (D) this(Loc loc, Expression e1, Expression e2, bool generated = true) @safe
     {
         super(loc, EXP.comma, e1, e2);
         allowCommaExp = isGenerated = generated;
+    }
+
+    extern (D) this(Loc loc, Expression e1, Expression e2, Expression oe) @safe
+    {
+        this(loc, e1, e2);
+        originalExp = oe;
     }
 
     override bool isLvalue()

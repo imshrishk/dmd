@@ -8,7 +8,7 @@
  *              Copyright (C) 2000-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/backend/cc.d, backend/_cc.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/backend/cc.d, backend/_cc.d)
  */
 
 module dmd.backend.cc;
@@ -140,6 +140,7 @@ enum
     SCSCT = 4,      // storage class is valid for use in static ctor
     SCSS  = 8,      // storage class is on the stack
     SCRD  = 0x10,   // we can do reaching definitions on these
+    SCDATA = 0x20,  // goes in data segment
 }
 
 // Determine if Symbol has a Ssymnum associated with it.

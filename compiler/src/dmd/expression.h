@@ -40,6 +40,7 @@ class OverloadSet;
 class StringExp;
 class InterpExp;
 class LoweredAssignExp;
+class StaticForeach;
 #ifdef IN_GCC
 typedef union tree_node Symbol;
 #else
@@ -989,6 +990,7 @@ class CommaExp final : public BinExp
 public:
     d_bool isGenerated;
     d_bool allowCommaExp;
+    Expression* originalExp;
     bool isLvalue() override;
     Optional<bool> toBool() override;
     void accept(Visitor *v) override { v->visit(this); }

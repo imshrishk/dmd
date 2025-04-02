@@ -14,9 +14,9 @@
  *              Copyright (C) 2000-2025 by The D Language Foundation, All Rights Reserved
  * Authors:     $(LINK2 https://www.digitalmars.com, Walter Bright)
  * License:     $(LINK2 https://www.boost.org/LICENSE_1_0.txt, Boost License 1.0)
- * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/src/dmd/backend/x86/cod2.d, backend/cod2.d)
+ * Source:      $(LINK2 https://github.com/dlang/dmd/blob/master/compiler/src/dmd/backend/x86/cod2.d, backend/cod2.d)
  * Documentation:  https://dlang.org/phobos/dmd_backend_x86_cod2.html
- * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/src/dmd/backend/x86/cod2.d
+ * Coverage:    https://codecov.io/gh/dlang/dmd/src/master/compiler/src/dmd/backend/x86/cod2.d
  */
 
 module dmd.backend.x86.cod2;
@@ -2174,6 +2174,7 @@ void cdnot(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
 @trusted
 void cdcom(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
 {
+    //printf("cdcom() pretregs: %s\n", regm_str(pretregs));
     if (cg.AArch64)
         return dmd.backend.arm.cod2.cdcom(cg, cdb, e, pretregs);
 
@@ -4433,6 +4434,9 @@ private void cdmemsetn(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pr
 @trusted
 void cdstreq(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
 {
+    if (cg.AArch64)
+        return dmd.backend.arm.cod2.cdstreq(cg, cdb, e, pretregs);
+
     char need_DS = false;
     elem* e1 = e.E1;
     elem* e2 = e.E2;
@@ -4642,6 +4646,9 @@ else
 @trusted
 void cdrelconst(ref CGstate cg, ref CodeBuilder cdb,elem* e,ref regm_t pretregs)
 {
+    if (cg.AArch64)
+        return dmd.backend.arm.cod2.cdrelconst(cg, cdb, e, pretregs);
+
     //printf("cdrelconst(e = %p, pretregs = %s)\n", e, regm_str(pretregs));
 
     /* The following should not happen, but cgelem.c is a little stupid.
