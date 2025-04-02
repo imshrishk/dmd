@@ -27,9 +27,9 @@ try {
   const prMemAvg = prResults.max_rss && prResults.max_rss.length > 0
     ? (prResults.max_rss.reduce((a, b) => a + b, 0) / prResults.max_rss.length / 1024).toFixed(1)
     : null;
-  const masterMemAvg = masterResults.max_rss && masterResults.max_rss.length > 0
-    ? (masterResults.max_rss.reduce((a, b) => a + b, 0) / masterResults.max_rss.length / 1024).toFixed(1)
-    : null;
+  const masterMemAvg = masterResults.max_rss && masterResults.max_rss.length > 0 ?
+    (masterResults.max_rss.reduce((a, b) => a + b, 0) / masterResults.max_rss.length / 1024).toFixed(1) :
+    null;
 
   const timeDiff = (prResults.mean - masterResults.mean).toFixed(3);
   const timePct = ((prResults.mean / masterResults.mean - 1) * 100).toFixed(2) + '%';
@@ -56,8 +56,8 @@ try {
       master_memory: masterMemAvg === null ? null : parseFloat(masterMemAvg),
       time_diff: parseFloat(timeDiff),
       time_pct: timePct,
-      mem_diff: memDiff === null ? null : parseFloat(memDiff),
-      mem_pct: memPct
+      mem_diff: memDiff !== null ? parseFloat(memDiff) : null,
+      mem_pct: memPct !== null ? memPct : "N/A"
     }
   };
 } catch (error) {

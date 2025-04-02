@@ -203,19 +203,23 @@ border-left: 4px solid rgb(75, 192, 192);
 </div>
 </div>
 <script>
+
 async function fetchData() {
   try {
-    showLoadingState();
     const response = await fetch('benchmark_data/history.json');
-    if (!response.ok) throw new Error('Failed to fetch data');
     const data = await response.json();
-    if (!Array.isArray(data)) {
-      throw new Error('Invalid data format');
-    }
-    hideLoadingState();
-    return data;
+
+    return data.map(item => ({
+      ...item,
+      metrics: {
+        pr_memory: item.metrics.pr_memory || null,
+        master_memory: item.metrics.master_memory || null,
+        time_pct: item.metrics.time_pct || "0.00%",
+        mem_pct: item.metrics.mem_pct || "N/A"
+      }
+    }));
   } catch (error) {
-    showErrorState(`Error loading data: ${error.message}`);
+    console.error('Error loading data:', error);
     return [];
   }
 }
