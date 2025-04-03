@@ -1,10 +1,11 @@
 const fs = require('fs');
+const path = require('path');
+
 const benchmarkFile = process.argv[2];
 const prNumber = process.argv[3];
 const prTitle = process.argv[4];
 const prUrl = process.argv[5];
 const commitSha = process.argv[6];
-const path = require('path');
 const outputPath = path.resolve(process.argv[7]);
 
 if (!fs.existsSync(benchmarkFile)) {
@@ -12,36 +13,42 @@ if (!fs.existsSync(benchmarkFile)) {
   process.exit(1);
 }
 
-let benchmarkResults;
-let result;
 try {
   const content = fs.readFileSync(benchmarkFile, 'utf8');
-  benchmarkResults = JSON.parse(content);
+  const benchmarkResults = JSON.parse(content);
 
   const prResults = benchmarkResults.results[0];
   const masterResults = benchmarkResults.results[1];
 
-  const prTimeAvg = prResults.mean.toFixed(3);
-  const masterTimeAvg = masterResults.mean.toFixed(3);
+  // Time calculations
+  const prTimeAvg = parseFloat(prResults.mean.toFixed(3));
+  const masterTimeAvg = parseFloat(masterResults.mean.toFixed(3));
+  const timeDiff = parseFloat((prResults.mean - masterResults.mean).toFixed(3));
+  const timePct = ((prTimeAvg / masterTimeAvg - 1) * 100).toFixed(2) + '%';
 
-  const prMemAvg = prResults.max_rss && prResults.max_rss.length > 0
-    ? (prResults.max_rss.reduce((a, b) => a + b, 0) / prResults.max_rss.length / 1024).toFixed(1)
-    : null;
-  const masterMemAvg = masterResults.max_rss && masterResults.max_rss.length > 0 ?
-    (masterResults.max_rss.reduce((a, b) => a + b, 0) / masterResults.max_rss.length / 1024).toFixed(1) :
-    null;
+  // Memory calculations
+  const prMemAvg = prResults.max_rss?.length > 0 ?
+    parseFloat(
+      (prResults.max_rss.reduce((a, b) => a + b, 0) /
+       prResults.max_rss.length / 1024
+      ).toFixed(1)
+    ) : null;
 
-  const timeDiff = (prResults.mean - masterResults.mean).toFixed(3);
-  const timePct = ((prResults.mean / masterResults.mean - 1) * 100).toFixed(2) + '%';
+  const masterMemAvg = masterResults.max_rss?.length > 0 ?
+    parseFloat(
+      (masterResults.max_rss.reduce((a, b) => a + b, 0) /
+       masterResults.max_rss.length / 1024
+      ).toFixed(1)
+    ) : null;
 
-  const memDiff = (prMemAvg && masterMemAvg)
-    ? (parseFloat(prMemAvg) - parseFloat(masterMemAvg)).toFixed(1)
-    : null;
-  const memPct = (prMemAvg && masterMemAvg && parseFloat(masterMemAvg) !== 0)
-    ? ((parseFloat(prMemAvg) / parseFloat(masterMemAvg) - 1) * 100).toFixed(2) + '%'
-    : null;
+  const memDiff = (prMemAvg !== null && masterMemAvg !== null) ?
+    parseFloat((prMemAvg - masterMemAvg).toFixed(1)) : null;
 
-  result = {
+  const memPct = (prMemAvg !== null && masterMemAvg !== null && masterMemAvg !== 0) ?
+    ((prMemAvg / masterMemAvg - 1) * 100).toFixed(2) + '%' : 'N/A';
+
+  // Create output array
+  const outputData = [{
     timestamp: new Date().toISOString(),
     pr: {
       number: parseInt(prNumber),
@@ -50,21 +57,20 @@ try {
       commit: commitSha
     },
     metrics: {
-      pr_time: parseFloat(prTimeAvg),
-      master_time: parseFloat(masterTimeAvg),
-      pr_memory: prMemAvg === null ? null : parseFloat(prMemAvg),
-      master_memory: masterMemAvg === null ? null : parseFloat(masterMemAvg),
-      time_diff: parseFloat(timeDiff),
+      pr_time: prTimeAvg,
+      master_time: masterTimeAvg,
+      pr_memory: prMemAvg,
+      master_memory: masterMemAvg,
+      time_diff: timeDiff,
       time_pct: timePct,
-      mem_diff: memDiff !== null ? parseFloat(memDiff) : null,
-      mem_pct: memPct !== null ? memPct : "N/A"
+      mem_diff: memDiff,
+      mem_pct: memPct
     }
-  };
+  }];
+
+  fs.writeFileSync(outputPath, JSON.stringify(outputData, null, 2));
+
 } catch (error) {
   console.error('Error processing benchmark results:', error);
   process.exit(1);
-}
-
-if (outputPath) {
-  fs.writeFileSync(outputPath, JSON.stringify(result, null, 2));
 }

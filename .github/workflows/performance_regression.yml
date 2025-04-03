@@ -504,16 +504,32 @@ jobs:
           git clone https://github.com/imshrishk/dlang-website.git
           cd dlang-website
 
-          # Update benchmarks.json
-          jq -s '. += [inputs]' _data/benchmarks.json ../gh-pages-repo/benchmark_data/*.json > temp.json
-          mv temp.json _data/benchmarks.json
+          # Create directories if they don't exist
+          mkdir -p _data assets/data
+
+          # Function to safely merge benchmark data
+          merge_benchmarks() {
+            local target_file="$1"
+            local temp_file="temp_$(basename $target_file)"
+
+            # Initialize with empty array if file doesn't exist
+            if [ ! -f "$target_file" ]; then
+              echo "[]" > "$target_file"
+            fi
+
+            # Merge using proper array concatenation
+            jq -s 'add' "$target_file" ../gh-pages-repo/benchmark_data/pr_*.json > "$temp_file"
+            mv "$temp_file" "$target_file"
+          }
+
+          # Update both benchmark files
+          merge_benchmarks "_data/benchmarks.json"
+          merge_benchmarks "assets/data/benchmarks.json"
 
           # Configure git
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
-          git add .
-          git commit -m "Update benchmark data"
+          git add _data/benchmarks.json assets/data/benchmarks.json
+          git commit -m "Update benchmark data in both locations"
           git push "https://${{ secrets.WEBSITE_TOKEN }}@github.com/imshrishk/dlang-website.git" main
-        env:
-          WEBSITE_TOKEN: ${{ secrets.WEBSITE_TOKEN }}
