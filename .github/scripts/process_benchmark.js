@@ -37,9 +37,9 @@ try {
   const masterMemAvg = masterResults.max_rss?.length > 0 ?
     parseFloat(
       (masterResults.max_rss.reduce((a, b) => a + b, 0) /
-      masterResults.max_rss.length / 1024
-    ).toFixed(1)
-  ) : null;
+       masterResults.max_rss.length / 1024
+      ).toFixed(1)
+    ) : null;
 
   const memDiff = (prMemAvg !== null && masterMemAvg !== null) ?
     parseFloat((prMemAvg - masterMemAvg).toFixed(1)) : null;
