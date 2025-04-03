@@ -13,37 +13,41 @@ if (!fs.existsSync(benchmarkFile)) {
   process.exit(1);
 }
 
-let benchmarkResults;
-let result;
 try {
   const content = fs.readFileSync(benchmarkFile, 'utf8');
-  benchmarkResults = JSON.parse(content);
+  const benchmarkResults = JSON.parse(content);
 
   const prResults = benchmarkResults.results[0];
   const masterResults = benchmarkResults.results[1];
 
   // Time calculations
-  const prTimeAvg = prResults.mean.toFixed(3);
-  const masterTimeAvg = masterResults.mean.toFixed(3);
-  const timeDiff = (prResults.mean - masterResults.mean).toFixed(3);
-  const timePct = ((prResults.mean / masterResults.mean - 1) * 100).toFixed(2) + '%';
+  const prTimeAvg = parseFloat(prResults.mean.toFixed(3));
+  const masterTimeAvg = parseFloat(masterResults.mean.toFixed(3));
+  const timeDiff = parseFloat((prResults.mean - masterResults.mean).toFixed(3));
+  const timePct = ((prTimeAvg / masterTimeAvg - 1) * 100).toFixed(2) + '%';
 
   // Memory calculations
-  const prMemAvg = prResults.max_rss?.length > 0
-    ? prResults.max_rss.reduce((a, b) => a + b, 0) / prResults.max_rss.length / 1024
-    : null;
-  const masterMemAvg = masterResults.max_rss?.length > 0
-    ? masterResults.max_rss.reduce((a, b) => a + b, 0) / masterResults.max_rss.length / 1024
-    : null;
+  const prMemAvg = prResults.max_rss?.length > 0 ?
+    parseFloat(
+      (prResults.max_rss.reduce((a, b) => a + b, 0) /
+       prResults.max_rss.length / 1024
+      ).toFixed(1)
+    ) : null;
 
-  const memDiff = (prMemAvg !== null && masterMemAvg !== null)
-    ? (prMemAvg - masterMemAvg).toFixed(1)
-    : null;
-  const memPct = (prMemAvg !== null && masterMemAvg !== null && masterMemAvg !== 0)
-    ? ((prMemAvg / masterMemAvg - 1) * 100).toFixed(2) + '%'
-    : null;
+  const masterMemAvg = masterResults.max_rss?.length > 0 ?
+    parseFloat(
+      (masterResults.max_rss.reduce((a, b) => a + b, 0) /
+      masterResults.max_rss.length / 1024
+    ).toFixed(1)
+  ) : null;
 
-  // Create output array with one entry
+  const memDiff = (prMemAvg !== null && masterMemAvg !== null) ?
+    parseFloat((prMemAvg - masterMemAvg).toFixed(1)) : null;
+
+  const memPct = (prMemAvg !== null && masterMemAvg !== null && masterMemAvg !== 0) ?
+    ((prMemAvg / masterMemAvg - 1) * 100).toFixed(2) + '%' : 'N/A';
+
+  // Create output array
   const outputData = [{
     timestamp: new Date().toISOString(),
     pr: {
@@ -53,18 +57,17 @@ try {
       commit: commitSha
     },
     metrics: {
-      pr_time: parseFloat(prTimeAvg),
-      master_time: parseFloat(masterTimeAvg),
-      pr_memory: prMemAvg !== null ? parseFloat(prMemAvg.toFixed(1)) : null,
-      master_memory: masterMemAvg !== null ? parseFloat(masterMemAvg.toFixed(1)) : null,
-      time_diff: parseFloat(timeDiff),
+      pr_time: prTimeAvg,
+      master_time: masterTimeAvg,
+      pr_memory: prMemAvg,
+      master_memory: masterMemAvg,
+      time_diff: timeDiff,
       time_pct: timePct,
-      mem_diff: memDiff !== null ? parseFloat(memDiff) : null,
-      mem_pct: memPct || "N/A"
+      mem_diff: memDiff,
+      mem_pct: memPct
     }
   }];
 
-  // Write as array format
   fs.writeFileSync(outputPath, JSON.stringify(outputData, null, 2));
 
 } catch (error) {

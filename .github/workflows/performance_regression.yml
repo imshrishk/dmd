@@ -517,8 +517,8 @@ jobs:
               echo "[]" > "$target_file"
             fi
 
-            # Merge existing data with new PR data (array concatenation)
-            jq -s '.[0] + (.[1:] | add)' "$target_file" ../gh-pages-repo/benchmark_data/*.json > "$temp_file"
+            # Merge using proper array concatenation
+            jq -s 'add' "$target_file" ../gh-pages-repo/benchmark_data/*.json > "$temp_file"
             mv "$temp_file" "$target_file"
           }
 
