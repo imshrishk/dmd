@@ -1,0 +1,125 @@
+name: Update Benchmark Dashboard
+on:
+  workflow_run:
+    workflows: ["Performance Regression Check"]
+    types:
+      - completed
+  # Add manual trigger option
+  workflow_dispatch:
+
+jobs:
+  update-dashboard:
+    runs-on: ubuntu-latest
+    if: ${{github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch'}}
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code with dashboard.html
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          path: source-repo
+
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages-repo
+          # Add fetch-depth to avoid shallow clone issues
+          fetch-depth: 0
+
+      - name: Download benchmark artifacts
+        if: ${{github.event_name != 'workflow_dispatch'}}
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: performance_regression.yml
+          workflow_conclusion: success
+          name: benchmark_data
+          path: benchmark_data
+          if_no_artifact_found: error
+
+      - name: Validate benchmark data existence
+        run: |
+          if [ ! -d "benchmark_data" ] || [ -z "$(ls -A benchmark_data/pr_*.json 2>/dev/null)" ]; then
+            echo "::error::No benchmark data found!"
+            exit 1
+          fi
+
+      - name: Update benchmark history
+        run: |
+          # Create directories if they don't exist
+          mkdir -p gh-pages-repo/benchmark_data
+
+          # Initialize history.json if it doesn't exist
+          if [ ! -f "gh-pages-repo/benchmark_data/history.json" ]; then
+              echo "[]" > gh-pages-repo/benchmark_data/history.json
+              echo "Created new history.json file"
+          fi
+
+          # Process benchmark data files
+          if [ -d "benchmark_data" ]; then
+              # Add debug output
+              echo "Contents of benchmark_data:"
+              ls -la benchmark_data
+
+              # Process all PR JSON files
+              for file in benchmark_data/pr_*.json; do
+              if [ -f "$file" ]; then
+                echo "Processing $file"
+                # Validate JSON syntax
+                if ! jq empty "$file" 2>/dev/null; then
+                  echo "Skipping invalid JSON file: $file"
+                  continue
+                fi
+
+                # Update history.json
+                jq --slurpfile newEntry "$file" \
+                  '.+=$newEntry' gh-pages-repo/benchmark_data/history.json > tmp.json
+                mv tmp.json gh-pages-repo/benchmark_data/history.json
+
+                # Also copy individual PR file
+                cp "$file" gh-pages-repo/benchmark_data/
+              fi
+            done
+
+            # Also copy the latest results file if it exists
+            if [ -f "benchmark_data/latest_results.json" ]; then
+              cp benchmark_data/latest_results.json gh-pages-repo/benchmark_data/
+            fi
+
+            # Sort history by timestamp
+            jq 'sort_by(.timestamp)' gh-pages-repo/benchmark_data/history.json > tmp.json
+            mv tmp.json gh-pages-repo/benchmark_data/history.json
+          fi
+
+          # Copy latest dashboard HTML
+          cp source-repo/dashboard.html gh-pages-repo/
+
+          # Debug: list benchmark_data directory contents
+          echo "Content of gh-pages-repo/benchmark_data:"
+          ls -la gh-pages-repo/benchmark_data/
+
+      - name: Commit and push changes
+        run: |
+          cd gh-pages-repo
+          git add benchmark_data/*.json dashboard.html
+
+          # Check for changes using git status
+          if [ -n "$(git status --porcelain)" ]; then
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git commit -m "Update benchmark data [skip ci]"
+            git push origin HEAD:gh-pages
+            echo "Changes pushed successfully"
+          else
+            echo "No changes to commit"
+          fi
+
+      - name: Validate JSON data
+        run: |
+          for file in benchmark_data/pr_*.json; do  # Only check PR files
+            if ! jq -e '.pr.number and .metrics.pr_time' "$file"; then
+              echo "::error::Invalid JSON structure in $file"
+              exit 1
+            fi
+          done

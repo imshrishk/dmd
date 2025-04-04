@@ -1,0 +1,47 @@
+name: Update GitHub Pages
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - 'dashboard.html'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup git identity
+        run: |
+          git config --global user.email "github-actions@github.com"
+          git config --global user.name "GitHub Actions"
+
+      - name: Prepare deploy folder
+        run: |
+          mkdir -p _temp
+          dashboard_path=$(find . -name "dashboard.html" -type f | head -1)
+          if [ -n "$dashboard_path" ]; then
+            echo "Found dashboard at: $dashboard_path"
+            cp "$dashboard_path" _temp/index.html
+          else
+            echo "ERROR: dashboard.html not found in repository"
+            exit 1
+          fi
+
+      - name: Deploy to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: _temp
+          clean: false
+          force: true
+          git-config-name: "GitHub Actions"
+          git-config-email: "github-actions@github.com"
+          commit-message: "Update dashboard [skip ci]"
