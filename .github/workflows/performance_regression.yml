@@ -190,14 +190,14 @@ jobs:
 
           # Handle memory runs with protection against empty arrays
           if [ ${#pr_mem[@]} -gt 0 ]; then
-          pr_mem_runs=$(format_mem_runs "${pr_mem[@]}")
-                    else
+            pr_mem_runs=$(format_mem_runs "${pr_mem[@]}")
+          else
             pr_mem_runs="N/A"
           fi
 
           if [ ${#master_mem[@]} -gt 0 ]; then
-          master_mem_runs=$(format_mem_runs "${master_mem[@]}")
-                    else
+            master_mem_runs=$(format_mem_runs "${master_mem[@]}")
+          else
             master_mem_runs="N/A"
           fi
 
@@ -235,34 +235,10 @@ jobs:
           }
 
           # Calculate memory averages
-          calc_stddev() {
-            local avg="$1"
-            local arr=("${@:2}")
-            if [ ${#arr[@]} -eq 0 ]; then
-              echo "0"
-            else
-              local sum_sq=0
-              for val in "${arr[@]}"; do
-                # Convert val (KB) to MB before subtracting 'avg'
-                sum_sq=$(awk -v val="$val" -v avg="$avg" -v sum="$sum_sq" 'BEGIN {printf "%.6f", sum + (val/1024 - avg)^2}')
-              done
-              awk -v sum_sq="$sum_sq" -v n="${#arr[@]}" 'BEGIN {printf "%.3f", sqrt(sum_sq/n)}'
-            fi
-          }
-
           pr_mem_avg=$(calc_avg "${pr_mem[@]}")
           master_mem_avg=$(calc_avg "${master_mem[@]}")
 
-          pr_mem_stddev=$(calc_stddev "$pr_mem_avg" "${pr_mem[@]}")
-          master_mem_stddev=$(calc_stddev "$master_mem_avg" "${master_mem[@]}")
-
-          # Format memory average and stddev
-          pr_mem_avg_fmt=$(awk -v val="$pr_mem_avg" 'BEGIN {printf "%.1f", val}')
-          pr_mem_stddev_fmt=$(awk -v val="$pr_mem_stddev" 'BEGIN {printf "%.1f", val}')
-          master_mem_avg_fmt=$(awk -v val="$master_mem_avg" 'BEGIN {printf "%.1f", val}')
-          master_mem_stddev_fmt=$(awk -v val="$master_mem_stddev" 'BEGIN {printf "%.1f", val}')
-
-          # Calculate differences
+          # Calculate differences with division by zero protection
           time_diff=$(awk -v pt="$pr_time_avg" -v mt="$master_time_avg" 'BEGIN {printf "%.3f", pt-mt}')
           mem_diff=$(awk -v pm="$pr_mem_avg" -v mm="$master_mem_avg" 'BEGIN {printf "%+.1f", pm-mm}')
 
@@ -298,23 +274,37 @@ jobs:
           }
 
           time_sig=$(calc_significance "$time_diff" "$pr_time_stddev" "$master_time_stddev")
+
+          # Calculate memory stddev for significance calculation
+          calc_stddev() {
+            local avg="$1"
+            local arr=("${@:2}")
+            if [ ${#arr[@]} -eq 0 ] || [ "${arr[0]}" == "0" ]; then
+              echo "0"
+            else
+              local sum_sq=0
+              for val in "${arr[@]}"; do
+                sum_sq=$(awk -v val="$val" -v avg="$avg" -v sum="$sum_sq" 'BEGIN {printf "%.6f", sum + (val/1024 - avg)^2}')
+              done
+              awk -v sum_sq="$sum_sq" -v n="${#arr[@]}" 'BEGIN {printf "%.3f", sqrt(sum_sq/n)}'
+            fi
+          }
+
+          pr_mem_stddev=$(calc_stddev "$pr_mem_avg" "${pr_mem[@]}")
+          master_mem_stddev=$(calc_stddev "$master_mem_avg" "${master_mem[@]}")
           mem_sig=$(calc_significance "$mem_diff" "$pr_mem_stddev" "$master_mem_stddev")
 
           # Set outputs
           echo "pr_time_runs=${pr_time_runs}" >> $GITHUB_OUTPUT
-          echo "master_time_runs=${master_time_runs}" >> $GITHUB_OUTPUT
           echo "pr_mem_runs=${pr_mem_runs}" >> $GITHUB_OUTPUT
+          echo "master_time_runs=${master_time_runs}" >> $GITHUB_OUTPUT
           echo "master_mem_runs=${master_mem_runs}" >> $GITHUB_OUTPUT
           echo "pr_time_avg=${pr_time_avg_fmt} ± ${pr_time_stddev_fmt}" >> $GITHUB_OUTPUT
           echo "master_time_avg=${master_time_avg_fmt} ± ${master_time_stddev_fmt}" >> $GITHUB_OUTPUT
-
-          echo "pr_mem_avg_fmt=${pr_mem_avg_fmt}" >> $GITHUB_OUTPUT
-          echo "pr_mem_stddev_fmt=${pr_mem_stddev_fmt}" >> $GITHUB_OUTPUT
-          echo "master_mem_avg_fmt=${master_mem_avg_fmt}" >> $GITHUB_OUTPUT
-          echo "master_mem_stddev_fmt=${master_mem_stddev_fmt}" >> $GITHUB_OUTPUT
-
           echo "pr_mem_avg=${pr_mem_avg}" >> $GITHUB_OUTPUT
           echo "master_mem_avg=${master_mem_avg}" >> $GITHUB_OUTPUT
+          echo "pr_mem_stddev=${pr_mem_stddev}" >> $GITHUB_OUTPUT
+          echo "master_mem_stddev=${master_mem_stddev}" >> $GITHUB_OUTPUT
           echo "time_diff=${time_diff}" >> $GITHUB_OUTPUT
           echo "time_pct=${time_pct}" >> $GITHUB_OUTPUT
           echo "mem_diff=${mem_diff}" >> $GITHUB_OUTPUT
@@ -387,13 +377,7 @@ jobs:
           IFS=', ' read -r -a pr_mem_array <<< "${{steps.results.outputs.pr_mem_runs}}"
           IFS=', ' read -r -a master_mem_array <<< "${{steps.results.outputs.master_mem_runs}}"
 
-          # Ensure we iterate over the max of the time array length or memory array length
-          max_len=${#pr_time_array[@]}
-          if [ ${#pr_mem_array[@]} -gt $max_len ]; then
-            max_len=${#pr_mem_array[@]}
-          fi
-
-          for (( i=0; i<$max_len; i++ )); do
+          for i in "${!pr_time_array[@]}"; do
             run_num=$((i+1))
             pr_time="${pr_time_array[$i]:-N/A}"
             master_time="${master_time_array[$i]:-N/A}"
@@ -416,8 +400,7 @@ jobs:
           |Metric|PR|Master|Difference|Change|Significance|
           |-----------------|-----------------------|------------------------|------------------|----------------|--------------|
           |⏱️ Time (s)|${{steps.results.outputs.pr_time_avg}}|${{steps.results.outputs.master_time_avg}}|${{steps.results.outputs.time_diff}}|${{steps.results.outputs.time_pct}} ${time_change_icon}|${time_sig_icon} ${{steps.results.outputs.time_sig}}σ|
-          |🧠 Memory (MB)|${{steps.results.outputs.pr_mem_avg_fmt}} ± ${{steps.results.outputs.pr_mem_stddev_fmt}}|${{steps.results.outputs.master_mem_avg_fmt}} ± ${{steps.results.outputs.master_mem_stddev_fmt}}|${{steps.results.outputs.mem_diff}}|${{steps.results.outputs.mem_pct}} ${mem_change_icon}|${mem_sig_icon} ${{steps.results.outputs.mem_sig}}σ|
-
+          |🧠 Memory (MB)|${{steps.results.outputs.pr_mem_avg}}|${{steps.results.outputs.master_mem_avg}}|${{steps.results.outputs.mem_diff}}|${{steps.results.outputs.mem_pct}} ${mem_change_icon}|${mem_sig_icon} ${{steps.results.outputs.mem_sig}}σ|
           **Binary Comparison:**
           ${{steps.results.outputs.binary_diff}}
           EOL
