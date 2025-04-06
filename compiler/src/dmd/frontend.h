@@ -6354,7 +6354,6 @@ public:
     bool disableNew;
     Sizeok sizeok;
     virtual Scope* newScope(Scope* sc);
-    virtual void finalizeSize() = 0;
     uinteger_t size(Loc loc) final override;
     Type* getType() final override;
     bool isDeprecated() const final override;
@@ -6701,7 +6700,6 @@ public:
 
     virtual bool isBaseOf(ClassDeclaration* cd, int32_t* poffset);
     bool isBaseInfoComplete() const;
-    void finalizeSize() final override;
     bool hasMonitor();
     bool isCOMclass() const;
     virtual bool isCOMinterface() const;
@@ -7435,7 +7433,6 @@ public:
     static StructDeclaration* create(Loc loc, Identifier* id, bool inObject);
     StructDeclaration* syntaxCopy(Dsymbol* s) override;
     const char* kind() const override;
-    void finalizeSize() final override;
     bool isPOD();
     bool hasCopyConstruction();
     void accept(Visitor* v) override;
@@ -7535,8 +7532,6 @@ public:
     void visit(StaticForeachDeclaration* _) override;
 };
 
-extern Array<Dsymbol* >* include(Dsymbol* d, Scope* sc);
-
 class ConditionIncludeVisitor : public Visitor
 {
 public:
@@ -7550,8 +7545,6 @@ public:
     void visit(StaticForeachDeclaration* sfd) override;
 };
 
-extern void addComment(Dsymbol* d, const char* comment);
-
 class AddCommentVisitor : public Visitor
 {
 public:
@@ -7563,16 +7556,6 @@ public:
     void visit(ConditionalDeclaration* cd) override;
     void visit(StaticForeachDeclaration* sfd) override;
 };
-
-extern bool hasStaticCtorOrDtor(Dsymbol* d);
-
-extern bool isFuncHidden(ClassDeclaration* cd, FuncDeclaration* fd);
-
-extern bool isAbstract(ClassDeclaration* cd);
-
-extern void lowerNonArrayAggregate(StaticForeach* sfe, Scope* sc);
-
-extern int32_t include(Condition* c, Scope* sc);
 
 class NrvoWalker final : public StatementRewriteWalker
 {
